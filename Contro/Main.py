@@ -6,7 +6,7 @@ widthimg = 700
 heightimg = 700
 questions = 5
 choices = 5
-ans = [1,3,3,3,1]
+ans = [1,3,3,2,3]
 
 img = cv2.imread("omrM1.png")
 imgContours = img.copy()
@@ -32,6 +32,7 @@ rectCon = Utility.rectCountour(contours)
 #Applying Threshold
 imgThresh = cv2.threshold(imgGray,170,255,cv2.THRESH_BINARY_INV)[1]
 boxes = Utility.splitBoxes(imgThresh)
+#print("HERE-> ",boxes)
 #cv2.imshow("Test",boxes[2])
 #print(cv2.countNonZero(boxes[0]),cv2.countNonZero(boxes[1]))
 

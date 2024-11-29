@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import Grade_Calculation as gc
 
 #finding_Countours
 def rectContours(cont):
@@ -18,6 +19,44 @@ def getCorner(cont):
     peri = cv2.arcLength(cont,True)
     approx = cv2.approxPolyDP(cont,0.02*peri,True)
     return approx
+
+
+# Reorder points for perspective transformation
+def reorderPoints(pts):
+    pts = pts.reshape((4, 2))  # Reshape to (4, 2)
+    rect = np.zeros((4, 2), dtype=np.float32)
+
+    # Sum and difference to find corners
+    s = pts.sum(axis=1)
+    diff = np.diff(pts, axis=1)
+
+    rect[0] = pts[np.argmin(s)]  # Top-left
+    rect[2] = pts[np.argmax(s)]  # Bottom-right
+    rect[1] = pts[np.argmin(diff)]  # Top-right
+    rect[3] = pts[np.argmax(diff)]  # Bottom-left
+
+    return rect
+
+# Perspective transformation for biggest rectangle
+def warpPerspective(frame, points):
+    # Reorder points
+    points = reorderPoints(points)
+
+    # Define the desired perspective rectangle size
+    width = 400
+    height = 300
+    dst = np.array([
+        [0, 0],
+        [width - 1, 0],
+        [width - 1, height - 1],
+        [0, height - 1]
+    ], dtype=np.float32)
+
+    # Get perspective transformation matrix
+    matrix = cv2.getPerspectiveTransform(points, dst)
+
+    # Perform the perspective warp
+    return cv2.warpPerspective(frame, matrix, (width, height))
 
 # Open the default camera (usually webcam at index 0)
 cap = cv2.VideoCapture(0)
@@ -47,7 +86,20 @@ else:
                 #print("Yes")
             if(len(biggest)!=0):
                 cv2.drawContours(rect_frame,biggest,-1,(0,255,0),10)
-                print("Yes")
+                x, y, w, h = cv2.boundingRect(biggest)  # Get bounding rectangle
+                cv2.rectangle(rect_frame, (x, y), (x + w, y + h), (0, 255, 0), 2)# Draw rectangle here
+
+                warped = warpPerspective(frame, biggest)
+                warped_Gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
+                cv2.imshow("Warped Perspective", warped) #Prespective view
+                
+                #print(gc.detect(warped_Gray))
+                cv2.imshow("Gray",warped_Gray)
+                
+                #Score Calculation
+                print(gc.score(gc.detect(warped_Gray),[4,3,4,2,1]))
+
+                #print("Yes")
             #cv2.drawContours(rect_frame,contours,-1,(0,255,0),1)
 
             cv2.imshow('Webcam', rect_frame)
