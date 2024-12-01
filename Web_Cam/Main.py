@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import Grade_Calculation as gc
 
+filter = 40000
+
 #finding_Countours
 def rectContours(cont):
     rectC = []
@@ -37,6 +39,24 @@ def reorderPoints(pts):
 
     return rect
 
+def inv_matrix(frame, points):
+    # Reorder points
+    points = reorderPoints(points)
+
+    # Define the desired perspective rectangle size
+    width = 400
+    height = 300
+    dst = np.array([
+        [0, 0],
+        [width - 1, 0],
+        [width - 1, height - 1],
+        [0, height - 1]
+    ], dtype=np.float32)
+
+    # Get perspective transformation matrix
+    matrix = cv2.getPerspectiveTransform(dst,points)
+    return matrix
+
 # Perspective transformation for biggest rectangle
 def warpPerspective(frame, points):
     # Reorder points
@@ -58,59 +78,89 @@ def warpPerspective(frame, points):
     # Perform the perspective warp
     return cv2.warpPerspective(frame, matrix, (width, height))
 
-# Open the default camera (usually webcam at index 0)
-cap = cv2.VideoCapture(0)
+def reading(row,column,_ans,rectanle=1,_score=0,analysis=0,cam=0,record=0):
+    var = 'Identifying'
+    if(record==1):
+        var = 'Record'
+    # Open the default camera (usually webcam at index 0)
+    cap = cv2.VideoCapture(0)
 
-# Check if the webcam opened successfully
-if not cap.isOpened():
-    print("Error: Could not open webcam.")
-else:
-    while True:
-        # Capture frame-by-frame
-        ret, frame = cap.read()
+    # Check if the webcam opened successfully
+    if not cap.isOpened():
+        print("Error: Could not open webcam.")
+    else:
+        while True:
+            # Capture frame-by-frame
+            ret, frame = cap.read()
 
-        # If frame was read successfully
-        if ret:
-            # Display the resulting frame
-            contour_frame = frame.copy()
-            rect_frame = frame.copy()
-            gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            blur_frame = cv2.GaussianBlur(gray_frame,(5,5),1)
-            canny_frame = cv2.Canny(blur_frame,10,50)
-            #Detecting_Countours
-            contours,hierarchy = cv2.findContours(canny_frame,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
-            rectCon = rectContours(contours)
-            biggest = []
-            if(len(rectCon)!=0):
-                biggest = getCorner(rectCon[0])
-                #print("Yes")
-            if(len(biggest)!=0):
-                cv2.drawContours(rect_frame,biggest,-1,(0,255,0),10)
-                x, y, w, h = cv2.boundingRect(biggest)  # Get bounding rectangle
-                cv2.rectangle(rect_frame, (x, y), (x + w, y + h), (0, 255, 0), 2)# Draw rectangle here
+            # If frame was read successfully
+            if ret:
+                # Display the resulting frame
+                contour_frame = frame.copy()
+                rect_frame = frame.copy()
+                gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                blur_frame = cv2.GaussianBlur(gray_frame,(5,5),1)
+                canny_frame = cv2.Canny(blur_frame,10,50)
+                #Detecting_Countours
+                contours,hierarchy = cv2.findContours(canny_frame,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
+                rectCon = rectContours(contours)
+                biggest = []
+                if(len(rectCon)!=0):
+                    biggest = getCorner(rectCon[0])
+                    #print("Yes")
+                if(len(biggest)!=0):
+                    #print(cv2.contourArea(biggest))
+                    #cv2.drawContours(rect_frame,biggest,-1,(0,255,0),10)
+                    x, y, w, h = cv2.boundingRect(biggest)  # Get bounding rectangle
+                    #cv2.rectangle(rect_frame, (x, y), (x + w, y + h), (0, 255, 0), 2)# Draw rectangle here
 
-                warped = warpPerspective(frame, biggest)
-                warped_Gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
-                cv2.imshow("Warped Perspective", warped) #Prespective view
-                
-                #print(gc.detect(warped_Gray))
-                cv2.imshow("Gray",warped_Gray)
-                
-                #Score Calculation
-                print(gc.score(gc.detect(warped_Gray),[4,3,4,2,1]))
+                    warped = warpPerspective(frame, biggest)
+                    warpedRaw = np.zeros_like(warped)
+                    warped_Gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
+                    warpedRaw = gc.showAnswer(warpedRaw,gc.detect(warped_Gray,row,column),gc.grading(gc.detect(warped_Gray,row,column),_ans,row),_ans,row,column)
+                    #cv2.imshow("Warped Perspective", warped) #Prespective view
 
-                #print("Yes")
-            #cv2.drawContours(rect_frame,contours,-1,(0,255,0),1)
+                    #Inverse
+                    inverse_warped = cv2.warpPerspective(warpedRaw,inv_matrix(frame,biggest),(frame.shape[1], frame.shape[0]))
+                    blended = cv2.addWeighted(frame, 1, inverse_warped, 1, 0)
+                    
+                    #print(gc.detect(warped_Gray))
+                    #cv2.imshow("Gray",warped_Gray)
+                    
+                    #Score Calculation
+                    
+                    #gc.textScreen(rect_frame,str(gc.score(gc.detect(warped_Gray,row,column),_ans,row)),(x,y),(x + w, y + h))
+                    if(cv2.contourArea(biggest)>filter):
+                        if(analysis==1):
+                            if(rectanle==1):
+                                cv2.rectangle(blended, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                            if(_score==1):
+                                gc.textScreen(blended,str(gc.score(gc.detect(warped_Gray,row,column),_ans,row)),(x,y),(x + w, y + h))
+                            print(gc.score(gc.detect(warped_Gray,row,column),_ans,row))
+                            cv2.imshow(var,blended)
+                        else:
+                            if(rectanle==1):
+                                cv2.rectangle(rect_frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                            if(_score==1):
+                                gc.textScreen(rect_frame,str(gc.score(gc.detect(warped_Gray,row,column),_ans,row)),(x,y),(x + w, y + h))
+                            cv2.imshow('Identifying', rect_frame)
+                    else:
+                        cv2.imshow('Identifying',frame)
 
-            cv2.imshow('Webcam', rect_frame)
 
-            # Break the loop when 'q' key is pressed
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+                    #print("Yes")
+                #cv2.drawContours(rect_frame,contours,-1,(0,255,0),1)
+                if(cam==1):
+                    cv2.imshow('Webcam',frame)
+                # Break the loop when 'q' key is pressed
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+            else:
+                print("Error: Could not read frame.")
                 break
-        else:
-            print("Error: Could not read frame.")
-            break
 
-# Release the capture and close the window
-cap.release()
-cv2.destroyAllWindows()
+    # Release the capture and close the window
+    cap.release()
+    cv2.destroyAllWindows()
+
+#reading(5,5,[0,3,4,2,1],1,1,1)
